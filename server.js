@@ -7,7 +7,12 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+// Parse the service account - handle escaped newlines
+const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT
+const serviceAccount = JSON.parse(rawJson)
+
+// Fix private key newlines in case they got escaped
+serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n')
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
