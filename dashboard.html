@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SavannahPay Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: monospace; background: #0f0f0f; color: #f0f0f0; padding: 24px; }
+        h1 { color: #D4A017; margin-bottom: 6px; }
+        .subtitle { color: #555; font-size: 13px; margin-bottom: 30px; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 30px; }
+        .stat-card { background: #1a1a1a; border: 1px solid #D4A017; border-radius: 12px; padding: 20px; }
+        .stat-label { font-size: 11px; color: #888; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+        .stat-value { font-size: 32px; font-weight: bold; color: #D4A017; }
+        table { width: 100%; border-collapse: collapse; background: #1a1a1a; border-radius: 12px; overflow: hidden; margin-bottom: 30px; }
+        th { background: #D4A017; color: #000; padding: 12px 16px; text-align: left; font-size: 11px; letter-spacing: 1px; }
+        td { padding: 12px 16px; border-bottom: 1px solid #222; font-size: 12px; }
+        tr:hover td { background: #222; }
+        .badge { padding: 3px 8px; border-radius: 20px; font-size: 10px; }
+        .badge.testnet { background: rgba(212,160,23,0.15); color: #D4A017; }
+        .badge.mainnet { background: rgba(76,175,80,0.15); color: #81C784; }
+        .badge.sent { background: rgba(229,57,53,0.15); color: #EF9A9A; }
+        .badge.received { background: rgba(76,175,80,0.15); color: #81C784; }
+        .section-title { font-size: 16px; font-weight: bold; margin-bottom: 14px; color: #D4A017; }
+        .refresh-btn { background: #D4A017; color: #000; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-family: monospace; font-weight: bold; margin-bottom: 20px; }
+        .addr { color: #888; font-size: 11px; }
+        .empty { text-align: center; padding: 30px; color: #444; }
+    </style>
+</head>
+<body>
+
+<h1>🦁 SavannahPay Admin</h1>
+<p class="subtitle">Real-time dashboard — all users and transactions</p>
+
+<button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+
+<div class="stats">
+    <div class="stat-card">
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value" id="totalUsers">—</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Transactions</div>
+        <div class="stat-value" id="totalTx">—</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Networks</div>
+        <div class="stat-value" id="totalNetworks">—</div>
+    </div>
+</div>
+
+<div class="section-title">👥 Users</div>
+<table id="usersTable">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Wallet Address</th>
+            <th>Network</th>
+            <th>Transactions</th>
+            <th>Joined</th>
+            <th>Last Seen</th>
+        </tr>
+    </thead>
+    <tbody id="usersBody">
+        <tr><td colspan="6" class="empty">Loading...</td></tr>
+    </tbody>
+</table>
+
+<div class="section-title">💸 Transactions</div>
+<table id="txTable">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Wallet Address</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Token</th>
+            <th>Network</th>
+            <th>Hash</th>
+            <th>Time</th>
+        </tr>
+    </thead>
+    <tbody id="txBody">
+        <tr><td colspan="8" class="empty">Loading...</td></tr>
+    </tbody>
+</table>
+
+<script>
+const BACKEND = "http://localhost:5000"
+
+function formatDate(ts) {
+    if (!ts) return "—"
+    const d = ts._seconds ? new Date(ts._seconds * 1000) : new Date(ts)
+    return d.toLocaleString()
+}
+
+function shortAddr(addr) {
+    if (!addr) return "—"
+    return addr.slice(0, 8) + "..." + addr.slice(-6)
+}
+
+async function loadAll() {
+    await loadUsers()
+    await loadTransactions()
+}
+
+async function loadUsers() {
+    try {
+        const res = await fetch(`${BACKEND}/api/admin/users`)
+        const data = await res.json()
+
+        document.getElementById("totalUsers").innerText = data.count
+
+        const networks = new Set(data.users.map(u => u.network))
+        document.getElementById("totalNetworks").innerText = networks.size
+
+        const tbody = document.getElementById("usersBody")
+        if (!data.users.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty">No users yet</td></tr>'
+            return
+        }
+
+        tbody.innerHTML = data.users.map((u, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td class="addr" title="${u.address}">${shortAddr(u.address)}</td>
+                <td><span class="badge ${u.network}">${u.network}</span></td>
+                <td>${u.totalTransactions || 0}</td>
+                <td>${formatDate(u.createdAt)}</td>
+                <td>${formatDate(u.lastSeen)}</td>
+            </tr>
+        `).join("")
+    } catch(e) {
+        document.getElementById("usersBody").innerHTML = '<tr><td colspan="6" class="empty">Could not load users</td></tr>'
+    }
+}
+
+async function loadTransactions() {
+    try {
+        const res = await fetch(`${BACKEND}/api/admin/transactions`)
+        const data = await res.json()
+
+        document.getElementById("totalTx").innerText = data.count
+
+        const tbody = document.getElementById("txBody")
+        if (!data.transactions.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty">No transactions yet</td></tr>'
+            return
+        }
+
+        tbody.innerHTML = data.transactions.map((tx, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td class="addr">${shortAddr(tx.address)}</td>
+                <td><span class="badge ${tx.type}">${tx.type}</span></td>
+                <td>${tx.amount}</td>
+                <td>${tx.symbol || "ETH"}</td>
+                <td><span class="badge ${tx.network}">${tx.network}</span></td>
+                <td class="addr" title="${tx.hash}">${shortAddr(tx.hash)}</td>
+                <td>${formatDate(tx.createdAt)}</td>
+            </tr>
+        `).join("")
+    } catch(e) {
+        document.getElementById("txBody").innerHTML = '<tr><td colspan="8" class="empty">Could not load transactions</td></tr>'
+    }
+}
+
+loadAll()
+</script>
+</body>
+</html>
